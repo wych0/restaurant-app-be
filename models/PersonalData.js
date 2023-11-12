@@ -1,11 +1,11 @@
 const { Schema, model } = require("mongoose");
 
 const personalDataSchema = new Schema({
-  name: {
+  firstName: {
     type: String,
     required: true,
   },
-  secName: {
+  secondName: {
     type: String,
     required: true,
   },
@@ -13,6 +13,11 @@ const personalDataSchema = new Schema({
     type: String,
     required: true,
   },
+  email: {
+    type: String,
+    required: true,
+  },
 });
 
 module.exports = model("personalData", personalDataSchema);
+module.exports = personalDataSchema;

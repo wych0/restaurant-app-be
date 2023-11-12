@@ -1,25 +1,50 @@
 const Reservation = require("../models/Reservation");
 const Table = require("../models/Table");
+const User = require("../models/user");
 const { isSameDay } = require("date-fns");
 const {
   notPastDate,
   notPastHour,
   isValidHour,
 } = require("../validators/reservation");
+const { createToken } = require("../tools/jwt-token");
+const {
+  sendConfirmationReservationEmail,
+} = require("../tools/email/sendEmail");
+const jwt = require("jsonwebtoken");
+
+const { CONFIRMATION_TOKEN_SECRET_KEY } = process.env;
+
+const maxConfirmationTokenAge = 15 * 60;
 
 create = async (req, res) => {
-  const { date, hour, peopleNumber } = req.body;
-  if (!date || !hour || !peopleNumber) {
+  const {
+    date,
+    hour,
+    peopleNumber,
+    additionalOptions,
+    personalData,
+    requests,
+    userId,
+  } = req.body;
+  if (!date || !hour || !peopleNumber || !personalData) {
     return res.status(400).json({ message: "Invalid data provided." });
   }
   try {
+    const user = await User.findOne({ email: personalData.email });
+    if (user && user._id != userId) {
+      return res.status(409).json({
+        message:
+          "Probably you have an account, please log in before making reservation.",
+      });
+    }
     if (!isValidHour(hour)) {
       return res
         .status(422)
         .json({ message: "Invalid hour provided. (12-22)" });
     }
     const maxPeopleNumber =
-      peopleNumber % 2 === 0 ? peopleNumber : peopleNumber + 1;
+      +peopleNumber % 2 === 0 ? +peopleNumber : +peopleNumber + 1;
     const availableTable = await findAvailableTable(
       date,
       hour,
@@ -40,9 +65,134 @@ create = async (req, res) => {
       date,
       hour,
       peopleNumber,
+      requests,
+      personalData,
+      additionalOptions,
       tableId: availableTable._id,
+      userId,
     });
+    const confirmationToken = createToken(
+      reservation._id,
+      CONFIRMATION_TOKEN_SECRET_KEY,
+      maxConfirmationTokenAge
+    );
+    await Reservation.findOneAndUpdate(
+      { _id: reservation._id },
+      { confirmationToken }
+    );
+    sendConfirmationReservationEmail(personalData.email, confirmationToken);
     res.status(201).json({ reservation: reservation._id });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+confirm = async (req, res) => {
+  const { token } = req.params;
+  try {
+    jwt.verify(
+      token,
+      CONFIRMATION_TOKEN_SECRET_KEY,
+      async (err, decodedToken) => {
+        if (err) {
+          return res.status(403).json({
+            message:
+              "Confirmation reservation failed. Probably the link has expired or is invalid.",
+          });
+        }
+        const reservation = await Reservation.findById(decodedToken.id);
+        if (!reservation || reservation.status !== "PENDING") {
+          return res.status(403).json({
+            message:
+              "Confirmation reservation failed. Probably the link has expired or is invalid.",
+          });
+        }
+        await Reservation.findOneAndUpdate(
+          { _id: reservation._id },
+          { $set: { status: "CONFIRMED", confirmationToken: "" } }
+        );
+        res.status(200).json({ message: "Reservation confirmed." });
+      }
+    );
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+getAll = async (req, res) => {
+  const { sort, dir, page, term, size } = req.query;
+  try {
+    const sortOptions = {};
+    const query = {};
+
+    if (sort) {
+      sortOptions[sort] = dir === "DESC" ? -1 : 1;
+    }
+
+    const reservations = await Reservation.find(query)
+      .sort(sortOptions)
+      .skip((page - 1) * size)
+      .limit(size);
+    res.status(200).json(reservations);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+getReservation = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const reservation = await Reservation.findById(id);
+    if (!reservation) {
+      return res.status(404).json({ message: "Couldn't find reservation." });
+    }
+    const table = await Table.findById(reservation.tableId);
+    const reservationDetails = {
+      id: reservation._id,
+      date: reservation.date,
+      hour: reservation.hour,
+      status: reservation.status,
+      peopleNumber: reservation.peopleNumber,
+      tableNumber: table.number,
+      personalData: reservation.personalData,
+      additionalOptions: reservation.additionalOptions,
+      requests: reservation.requests,
+      confirmationToken: reservation.confirmationToken,
+    };
+    res.status(200).json(reservationDetails);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+getUserReservations = async (req, res) => {
+  const { sort, dir, page, size } = req.query;
+  const userId = req.user;
+  try {
+    const sortOptions = {};
+    const query = {
+      userId,
+    };
+
+    if (sort) {
+      sortOptions[sort] = dir === "desc" ? -1 : 1;
+    }
+    const reservationsResponse = [];
+    const totalCount = (await Reservation.find(query)).length;
+    const reservations = await Reservation.find(query)
+      .sort(sortOptions)
+      .skip((page - 1) * size)
+      .limit(+size);
+
+    reservations.forEach((reservation) => {
+      reservationResponse = {
+        id: reservation._id,
+        date: reservation.date,
+        status: reservation.status,
+      };
+      reservationsResponse.push(reservationResponse);
+    });
+    res.status(200).json({ reservations: reservationsResponse, totalCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -50,6 +200,7 @@ create = async (req, res) => {
 
 availableHours = async (req, res) => {
   const { date, peopleNumber } = req.query;
+
   if (!date || !peopleNumber) {
     return res.status(400).json({ message: "Invalid data provided." });
   }
@@ -63,12 +214,14 @@ availableHours = async (req, res) => {
     }
     const maxPeopleNumber =
       +peopleNumber % 2 === 0 ? +peopleNumber : +peopleNumber + 1;
-
     const tables = await Table.find({ maxPeopleNumber });
-    const reservations = await Reservation.find({ date });
+    const reservations = await Reservation.find({
+      date,
+      peopleNumber: { $in: [maxPeopleNumber, maxPeopleNumber - 1] },
+    });
     const firstAvailableHour =
       isSameDay(todaysDate, providedDate) && currentHour >= 12
-        ? currentHour + 1
+        ? currentHour + 2
         : 12;
     const lastAvailableHour = 22;
     const availableHours = [];
@@ -119,4 +272,11 @@ async function findAvailableTable(date, hour, maxPeopleNumber) {
   return availableTable;
 }
 
-module.exports = { create, availableHours };
+module.exports = {
+  create,
+  availableHours,
+  getAll,
+  getUserReservations,
+  confirm,
+  getReservation,
+};

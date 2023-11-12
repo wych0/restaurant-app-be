@@ -25,9 +25,21 @@ const userSchema = new Schema({
     type: ObjectId,
     ref: "PersonalData",
   },
+  refreshToken: {
+    type: String,
+  },
+  recoveryToken: {
+    type: String,
+  },
 });
 
 userSchema.pre("save", async function (next) {
+  const salt = await bcrypt.genSalt();
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+userSchema.pre("update", async function (next) {
   const salt = await bcrypt.genSalt();
   this.password = await bcrypt.hash(this.password, salt);
   next();
@@ -40,9 +52,9 @@ userSchema.statics.login = async function (email, password) {
     if (auth) {
       return user;
     }
-    throw Error("Something went wrong. Try again.");
+    return null;
   }
-  throw Error("Something went wrong. Try again.");
+  return null;
 };
 
 module.exports = model("User", userSchema);

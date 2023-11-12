@@ -1,4 +1,17 @@
 const { Schema, model, ObjectId } = require("mongoose");
+const personalDataSchema = require("./personalData");
+
+const additionalOptionsSchema = new Schema({
+  wheelchair: {
+    type: Boolean,
+  },
+  baby: {
+    type: Boolean,
+  },
+  cake: {
+    type: Boolean,
+  },
+});
 
 const reservationSchema = new Schema({
   date: {
@@ -21,6 +34,32 @@ const reservationSchema = new Schema({
   tableId: {
     type: ObjectId,
     ref: "Table",
+    required: true,
+  },
+  personalData: {
+    type: personalDataSchema,
+    required: true,
+  },
+  additionalOptions: {
+    type: additionalOptionsSchema,
+  },
+  requests: {
+    type: String,
+  },
+  confirmationToken: {
+    type: String,
+  },
+  userId: {
+    type: ObjectId,
+    ref: "User",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: {
+      expireAfterSeconds: 900,
+      partialFilterExpression: { status: "PENDING" },
+    },
   },
 });
 
