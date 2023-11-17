@@ -53,6 +53,9 @@ const reservationSchema = new Schema({
     type: ObjectId,
     ref: "User",
   },
+  cancellationReason: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -61,6 +64,19 @@ const reservationSchema = new Schema({
       partialFilterExpression: { status: "PENDING" },
     },
   },
+});
+
+reservationSchema.pre("save", async function (next) {
+  const noSpacesPhoneNumber = this.personalData.phone.replace(/\D/g, "");
+  const formattedPhoneNumber = noSpacesPhoneNumber.replace(
+    /(\d{3})(\d{3})(\d{3})/,
+    "$1 $2 $3"
+  );
+  const formattedEmail = this.personalData.email.toLowerCase();
+  this.personalData.email = formattedEmail;
+  this.personalData.phone = formattedPhoneNumber;
+
+  next();
 });
 
 module.exports = model("Reservation", reservationSchema);

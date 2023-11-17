@@ -29,4 +29,18 @@ const isValidHour = (hour) => {
   return false;
 };
 
-module.exports = { notPastDate, notPastHour, isValidHour };
+const isCancellable = (date, hour) => {
+  const maxDate = new Date();
+  maxDate.setHours(maxDate.getHours() + 12);
+  const providedHour = parseInt(hour.split(":")[0]);
+  const providedDate = date;
+  providedDate.setHours(providedDate.getHours() + providedHour);
+
+  if (providedDate < maxDate) {
+    return false;
+  }
+
+  return true;
+};
+
+module.exports = { notPastDate, notPastHour, isValidHour, isCancellable };

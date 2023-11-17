@@ -1,3 +1,4 @@
+const { ObjectId } = require("mongodb");
 const Reservation = require("../models/Reservation");
 const Table = require("../models/Table");
 const User = require("../models/user");
@@ -6,10 +7,12 @@ const {
   notPastDate,
   notPastHour,
   isValidHour,
+  isCancellable,
 } = require("../validators/reservation");
 const { createToken } = require("../tools/jwt-token");
 const {
   sendConfirmationReservationEmail,
+  sendCancellationReservationEmail,
 } = require("../tools/email/sendEmail");
 const jwt = require("jsonwebtoken");
 
@@ -80,8 +83,20 @@ create = async (req, res) => {
       { _id: reservation._id },
       { confirmationToken }
     );
-    sendConfirmationReservationEmail(personalData.email, confirmationToken);
-    res.status(201).json({ reservation: reservation._id });
+    const reservationResponse = {
+      date: reservation.date,
+      hour: reservation.hour,
+      peopleNumber: reservation.peopleNumber,
+      tableNumber: availableTable.number,
+      personalData: reservation.personalData,
+    };
+    sendConfirmationReservationEmail(
+      personalData.email,
+      confirmationToken,
+      reservation,
+      availableTable.number
+    );
+    res.status(201).json(reservationResponse);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -114,6 +129,79 @@ confirm = async (req, res) => {
         res.status(200).json({ message: "Reservation confirmed." });
       }
     );
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+cancel = async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  const userId = req.user;
+  try {
+    const _id = new ObjectId(id);
+    const reservation = await Reservation.findById(_id);
+    if (!reservation) {
+      return res.status(404).json({
+        message: "Cancelling reservation failed. We couldn't find reservation.",
+      });
+    }
+    const user = await User.findById(userId);
+    if (
+      user.role === "CLIENT" &&
+      user._id.toString() != reservation.userId.toString()
+    ) {
+      return res.status(403).json({
+        message:
+          "Cancelling reservation failed. You can't cancel this reservation.",
+      });
+    }
+    if (
+      reservation.status === "CANCELLED" ||
+      reservation.status === "COMPLETED"
+    ) {
+      return res.status(403).json({
+        message:
+          "Cancelling reservation failed. Probably reservation is cancelled or completed.",
+      });
+    }
+
+    if (!isCancellable(reservation.date, reservation.hour)) {
+      return res.status(403).json({
+        message:
+          "Cancelling reservation failed. You can cancel your reservation at least 12 hours before it's date.",
+      });
+    }
+
+    let cancellationReason = reason;
+
+    if (user.role === "CLIENT") {
+      cancellationReason = "Reservation cancelled by client.";
+    }
+
+    if (!cancellationReason) {
+      return res.status(403).json({
+        message:
+          "Cancelling reservation failed. No cancellation reason provided by worker.",
+      });
+    }
+
+    await Reservation.findOneAndUpdate(
+      { _id },
+      {
+        $set: {
+          status: "CANCELLED",
+          confirmationToken: "",
+          cancellationReason,
+        },
+      }
+    );
+    sendCancellationReservationEmail(
+      reservation.personalData.email,
+      _id,
+      cancellationReason
+    );
+    res.status(200).json({ message: "Reservation cancelled." });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -157,7 +245,7 @@ getReservation = async (req, res) => {
       personalData: reservation.personalData,
       additionalOptions: reservation.additionalOptions,
       requests: reservation.requests,
-      confirmationToken: reservation.confirmationToken,
+      cancellationReason: reservation.cancellationReason,
     };
     res.status(200).json(reservationDetails);
   } catch (err) {
@@ -166,7 +254,7 @@ getReservation = async (req, res) => {
 };
 
 getUserReservations = async (req, res) => {
-  const { sort, dir, page, size } = req.query;
+  const { sort, dir, page, size, status } = req.query;
   const userId = req.user;
   try {
     const sortOptions = {};
@@ -174,8 +262,20 @@ getUserReservations = async (req, res) => {
       userId,
     };
 
+    if (status) {
+      query.status = status;
+    }
+
+    if (!sort) {
+      sortOptions["date"] = -1;
+      sortOptions["hour"] = -1;
+    }
+
     if (sort) {
       sortOptions[sort] = dir === "desc" ? -1 : 1;
+      if (sort === "date") {
+        sortOptions["hour"] = dir === "desc" ? -1 : 1;
+      }
     }
     const reservationsResponse = [];
     const totalCount = (await Reservation.find(query)).length;
@@ -189,6 +289,7 @@ getUserReservations = async (req, res) => {
         id: reservation._id,
         date: reservation.date,
         status: reservation.status,
+        hour: reservation.hour,
       };
       reservationsResponse.push(reservationResponse);
     });
@@ -218,7 +319,9 @@ availableHours = async (req, res) => {
     const reservations = await Reservation.find({
       date,
       peopleNumber: { $in: [maxPeopleNumber, maxPeopleNumber - 1] },
+      status: { $ne: "CANCELLED" },
     });
+
     const firstAvailableHour =
       isSameDay(todaysDate, providedDate) && currentHour >= 12
         ? currentHour + 2
@@ -247,7 +350,10 @@ availableHours = async (req, res) => {
 };
 
 async function findAvailableTable(date, hour, maxPeopleNumber) {
-  const reservations = await Reservation.find({ date });
+  const reservations = await Reservation.find({
+    date,
+    status: { $ne: "CANCELLED" },
+  });
   const tables = await Table.find({ maxPeopleNumber });
   const intHour = parseInt(hour.split(":")[0]);
 
@@ -279,4 +385,5 @@ module.exports = {
   getUserReservations,
   confirm,
   getReservation,
+  cancel,
 };
