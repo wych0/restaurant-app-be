@@ -55,6 +55,7 @@ const sendConfirmationReservationEmail = async (
   email,
   token,
   reservation,
+  personalData,
   tableNumber
 ) => {
   const source = fs.readFileSync(
@@ -67,11 +68,8 @@ const sendConfirmationReservationEmail = async (
   const hour = reservation.hour;
   const id = reservation._id;
   const peopleNumber = reservation.peopleNumber;
-  const fullName = formatName(
-    reservation.personalData.firstName,
-    reservation.personalData.secondName
-  );
-  const contact = `${reservation.personalData.email}, ${reservation.personalData.phone}`;
+  const fullName = formatName(personalData.firstName, personalData.secondName);
+  const contact = `${email}, ${personalData.phone}`;
   await transporter.sendMail({
     from,
     to: email,

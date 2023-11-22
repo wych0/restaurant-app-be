@@ -17,6 +17,12 @@ const dishSchema = new Schema({
     type: String,
     required: true,
   },
+  isSpicy: {
+    type: Boolean,
+  },
+  isVegan: {
+    type: Boolean,
+  },
 });
 
 module.exports = model("Dish", dishSchema);

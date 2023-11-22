@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb");
 const Reservation = require("../models/Reservation");
 const Table = require("../models/Table");
 const User = require("../models/user");
+const PersonalData = require("../models/PersonalData");
 const { isSameDay } = require("date-fns");
 const {
   notPastDate,
@@ -64,12 +65,29 @@ create = async (req, res) => {
     if (!notPastHour(hour) && isSameDay(todaysDate, providedDate)) {
       return res.status(422).json({ message: "Past hour provided." });
     }
+    if (user) {
+      const userPersonalData = await PersonalData.findById(user.personalDataId);
+      if (userPersonalData) {
+        userPersonalData.firstName = personalData.firstName;
+        userPersonalData.secondName = personalData.secondName;
+        userPersonalData.email = personalData.email;
+        userPersonalData.phone = personalData.phone;
+        await userPersonalData.save();
+      } else {
+        const createdUserPersonalData = await PersonalData.create(personalData);
+        await User.findOneAndUpdate({
+          personalDataId: createdUserPersonalData._id,
+        });
+      }
+    }
+    const reservationPersonalData = await PersonalData.create(personalData);
+
     const reservation = await Reservation.create({
       date,
       hour,
       peopleNumber,
       requests,
-      personalData,
+      personalDataId: reservationPersonalData._id,
       additionalOptions,
       tableId: availableTable._id,
       userId,
@@ -88,12 +106,13 @@ create = async (req, res) => {
       hour: reservation.hour,
       peopleNumber: reservation.peopleNumber,
       tableNumber: availableTable.number,
-      personalData: reservation.personalData,
+      personalData,
     };
     sendConfirmationReservationEmail(
       personalData.email,
       confirmationToken,
       reservation,
+      personalData,
       availableTable.number
     );
     res.status(201).json(reservationResponse);
@@ -166,7 +185,10 @@ cancel = async (req, res) => {
       });
     }
 
-    if (!isCancellable(reservation.date, reservation.hour)) {
+    if (
+      !isCancellable(reservation.date, reservation.hour) &&
+      user.role === "CLIENT"
+    ) {
       return res.status(403).json({
         message:
           "Cancelling reservation failed. You can cancel your reservation at least 12 hours before it's date.",
@@ -196,8 +218,11 @@ cancel = async (req, res) => {
         },
       }
     );
+    const personalData = await PersonalData.findById(
+      reservation.personalDataId
+    );
     sendCancellationReservationEmail(
-      reservation.personalData.email,
+      personalData.email,
       _id,
       cancellationReason
     );
@@ -208,62 +233,39 @@ cancel = async (req, res) => {
 };
 
 getAll = async (req, res) => {
-  const { sort, dir, page, term, size } = req.query;
+  const { sort, dir, page, term, size, status, date } = req.query;
   try {
     const sortOptions = {};
     const query = {};
 
-    if (sort) {
-      sortOptions[sort] = dir === "DESC" ? -1 : 1;
-    }
-
-    const reservations = await Reservation.find(query)
-      .sort(sortOptions)
-      .skip((page - 1) * size)
-      .limit(size);
-    res.status(200).json(reservations);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-getReservation = async (req, res) => {
-  const { id } = req.params;
-  try {
-    const reservation = await Reservation.findById(id);
-    if (!reservation) {
-      return res.status(404).json({ message: "Couldn't find reservation." });
-    }
-    const table = await Table.findById(reservation.tableId);
-    const reservationDetails = {
-      id: reservation._id,
-      date: reservation.date,
-      hour: reservation.hour,
-      status: reservation.status,
-      peopleNumber: reservation.peopleNumber,
-      tableNumber: table.number,
-      personalData: reservation.personalData,
-      additionalOptions: reservation.additionalOptions,
-      requests: reservation.requests,
-      cancellationReason: reservation.cancellationReason,
-    };
-    res.status(200).json(reservationDetails);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-getUserReservations = async (req, res) => {
-  const { sort, dir, page, size, status } = req.query;
-  const userId = req.user;
-  try {
-    const sortOptions = {};
-    const query = {
-      userId,
-    };
-
     if (status) {
       query.status = status;
+    }
+
+    if (date) {
+      const [day, month, year] = date.split(".").map(Number);
+      query.date = new Date(year, month - 1, day);
+    }
+
+    if (term) {
+      let terms = [term];
+      if (term.includes(" ")) {
+        terms = term.split(" ");
+      }
+      const personalDataQuery = {
+        $and: terms.map((term) => ({
+          $or: [
+            { firstName: { $regex: term, $options: "i" } },
+            { secondName: { $regex: term, $options: "i" } },
+          ],
+        })),
+      };
+
+      const personalDataIds = await PersonalData.find(
+        personalDataQuery
+      ).distinct("_id");
+
+      query.personalDataId = { $in: personalDataIds };
     }
 
     if (!sort) {
@@ -277,23 +279,78 @@ getUserReservations = async (req, res) => {
         sortOptions["hour"] = dir === "desc" ? -1 : 1;
       }
     }
+
     const reservationsResponse = [];
     const totalCount = (await Reservation.find(query)).length;
+
     const reservations = await Reservation.find(query)
       .sort(sortOptions)
       .skip((page - 1) * size)
       .limit(+size);
 
-    reservations.forEach((reservation) => {
+    for (const reservation of reservations) {
+      const table = await Table.findById(reservation.tableId);
+      const personalData = await PersonalData.findById(
+        reservation.personalDataId
+      );
+      const personalDataResponse = {
+        firstName: personalData.firstName,
+        secondName: personalData.secondName,
+        phone: personalData.phone,
+        email: personalData.email,
+      };
       reservationResponse = {
         id: reservation._id,
         date: reservation.date,
         status: reservation.status,
         hour: reservation.hour,
+        personalData: personalDataResponse,
+        tableNumber: table.number,
+        peopleNumber: reservation.peopleNumber,
+        cancellationReason: reservation.cancellationReason,
+        additionalOptions: reservation.additionalOptions,
+        requests: reservation.requests,
+        userId: reservation.userId,
       };
       reservationsResponse.push(reservationResponse);
-    });
+    }
+
     res.status(200).json({ reservations: reservationsResponse, totalCount });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+getReservation = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const reservation = await Reservation.findById(id);
+    if (!reservation) {
+      return res.status(404).json({ message: "Couldn't find reservation." });
+    }
+    const table = await Table.findById(reservation.tableId);
+    const personalData = await PersonalData.findById(
+      reservation.personalDataId
+    );
+    const personalDataResponse = {
+      firstName: personalData.firstName,
+      secondName: personalData.secondName,
+      phone: personalData.phone,
+      email: personalData.email,
+    };
+    const reservationDetails = {
+      id: reservation._id,
+      date: reservation.date,
+      hour: reservation.hour,
+      status: reservation.status,
+      peopleNumber: reservation.peopleNumber,
+      tableNumber: table.number,
+      personalData: personalDataResponse,
+      additionalOptions: reservation.additionalOptions,
+      requests: reservation.requests,
+      cancellationReason: reservation.cancellationReason,
+    };
+    res.status(200).json(reservationDetails);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -382,7 +439,6 @@ module.exports = {
   create,
   availableHours,
   getAll,
-  getUserReservations,
   confirm,
   getReservation,
   cancel,

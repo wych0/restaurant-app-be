@@ -327,6 +327,36 @@ checkRecoveryToken = async (req, res) => {
   }
 };
 
+isAuth = async (req, res) => {
+  const refreshToken = req.cookies.jwt_refresh;
+  if (!refreshToken) {
+    return res.status(200).json(false);
+  }
+  try {
+    const user = await User.findOne({ refreshToken });
+    if (!user) {
+      return res.status(200).json(false);
+    }
+    jwt.verify(refreshToken, REFRESH_TOKEN_SECRET_KEY, (err, decodedToken) => {
+      if (err) {
+        return res.status(200).json(false);
+      }
+      const accessToken = createToken(
+        decodedToken.id,
+        ACCESS_TOKEN_SECRET_KEY,
+        maxAccessTokenAge
+      );
+      res.cookie("jwt_access", accessToken, {
+        httpOnly: true,
+        maxAge: maxAccessTokenAge * 1000,
+      });
+      res.status(200).json(true);
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   login,
   register,
@@ -338,4 +368,5 @@ module.exports = {
   recoverPassword,
   recoverPasswordEmail,
   checkRecoveryToken,
+  isAuth,
 };

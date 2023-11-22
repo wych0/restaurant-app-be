@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Dish = require("../models/dish");
+const Dish = require("../models/Dish");
 const { ObjectId } = require("mongodb");
 
 const { verifyToken } = require("../middleware/authMiddleware");
