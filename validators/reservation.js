@@ -29,11 +29,14 @@ const isValidHour = (hour) => {
   return false;
 };
 
-const isCancellable = (date, hour) => {
+const isCancellableByClient = (date, hour, status) => {
+  if (status === "CANCELLED" || status === "COMPLETED") {
+    return false;
+  }
   const maxDate = new Date();
   maxDate.setHours(maxDate.getHours() + 12);
   const providedHour = parseInt(hour.split(":")[0]);
-  const providedDate = date;
+  const providedDate = new Date(date);
   providedDate.setHours(providedDate.getHours() + providedHour);
 
   if (providedDate < maxDate) {
@@ -43,4 +46,35 @@ const isCancellable = (date, hour) => {
   return true;
 };
 
-module.exports = { notPastDate, notPastHour, isValidHour, isCancellable };
+const isCancellable = (status) => {
+  if (status === "CANCELLED" || status === "COMPLETED") {
+    return false;
+  }
+
+  return true;
+};
+
+const canComplete = (date, hour, status) => {
+  if (status != "CONFIRMED") {
+    return false;
+  }
+  const currentDate = new Date();
+  const reservationDate = new Date(date);
+  const resevationHour = parseInt(hour.split(":")[0]);
+  reservationDate.setHours(reservationDate.getHours() + resevationHour);
+
+  if (reservationDate > currentDate) {
+    return false;
+  }
+
+  return true;
+};
+
+module.exports = {
+  notPastDate,
+  notPastHour,
+  isValidHour,
+  isCancellable,
+  canComplete,
+  isCancellableByClient,
+};

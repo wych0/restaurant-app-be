@@ -9,6 +9,8 @@ const {
   notPastHour,
   isValidHour,
   isCancellable,
+  canComplete,
+  isCancellableByClient,
 } = require("../validators/reservation");
 const { createToken } = require("../tools/jwt-token");
 const {
@@ -153,6 +155,47 @@ confirm = async (req, res) => {
   }
 };
 
+complete = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user;
+  try {
+    const _id = new ObjectId(id);
+    const reservation = await Reservation.findById(_id);
+    if (!reservation) {
+      return res.status(404).json({
+        message: "Completing reservation failed. We couldn't find reservation.",
+      });
+    }
+    const user = await User.findById(userId);
+    if (reservation.status != "CONFIRMED") {
+      return res.status(403).json({
+        message:
+          "Completing reservation failed. Reservation must be in status CONFIRMED.",
+      });
+    }
+
+    if (!canComplete(reservation.date, reservation.hour, reservation.status)) {
+      return res.status(403).json({
+        message:
+          "Completing reservation failed. You can complete reservation after its date.",
+      });
+    }
+
+    await Reservation.findOneAndUpdate(
+      { _id },
+      {
+        $set: {
+          status: "COMPLETED",
+          completedBy: user.email,
+        },
+      }
+    );
+    res.status(200).json({ message: "Reservation completed." });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 cancel = async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
@@ -186,7 +229,11 @@ cancel = async (req, res) => {
     }
 
     if (
-      !isCancellable(reservation.date, reservation.hour) &&
+      !isCancellableByClient(
+        reservation.date,
+        reservation.hour,
+        reservation.status
+      ) &&
       user.role === "CLIENT"
     ) {
       return res.status(403).json({
@@ -299,6 +346,7 @@ getAll = async (req, res) => {
         phone: personalData.phone,
         email: personalData.email,
       };
+
       reservationResponse = {
         id: reservation._id,
         date: reservation.date,
@@ -311,6 +359,12 @@ getAll = async (req, res) => {
         additionalOptions: reservation.additionalOptions,
         requests: reservation.requests,
         userId: reservation.userId,
+        isCancellable: isCancellable(reservation.status),
+        canComplete: canComplete(
+          reservation.date,
+          reservation.hour,
+          reservation.status
+        ),
       };
       reservationsResponse.push(reservationResponse);
     }
@@ -349,6 +403,11 @@ getReservation = async (req, res) => {
       additionalOptions: reservation.additionalOptions,
       requests: reservation.requests,
       cancellationReason: reservation.cancellationReason,
+      isCancellable: isCancellableByClient(
+        reservation.date,
+        reservation.hour,
+        reservation.status
+      ),
     };
     res.status(200).json(reservationDetails);
   } catch (err) {
@@ -442,4 +501,5 @@ module.exports = {
   confirm,
   getReservation,
   cancel,
+  complete,
 };

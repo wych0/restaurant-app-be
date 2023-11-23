@@ -55,6 +55,12 @@ const reservationSchema = new Schema({
   cancellationReason: {
     type: String,
   },
+  cancelledBy: {
+    type: String,
+  },
+  completedBy: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
