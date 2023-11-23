@@ -380,7 +380,7 @@ availableHours = async (req, res) => {
     });
 
     const firstAvailableHour =
-      isSameDay(todaysDate, providedDate) && currentHour >= 12
+      isSameDay(todaysDate, providedDate) && currentHour >= 11
         ? currentHour + 2
         : 12;
     const lastAvailableHour = 22;
