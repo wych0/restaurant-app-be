@@ -368,8 +368,10 @@ getAll = async (req, res) => {
           reservation.hour,
           reservation.status
         ),
-        completedBy: user.role === "MANAGER" ? reservation.completedBy : null,
-        cancelledBy: user.role === "MANAGER" ? reservation.cancelledBy : null,
+        completedBy:
+          user.role === "MANAGER" ? reservation.completedBy : undefined,
+        cancelledBy:
+          user.role === "MANAGER" ? reservation.cancelledBy : undefined,
       };
       reservationsResponse.push(reservationResponse);
     }

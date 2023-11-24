@@ -15,13 +15,27 @@ const dishSchema = new Schema({
   },
   type: {
     type: String,
+    enum: ["appetizer", "pizza", "pasta", "soup", "dessert", "drink"],
     required: true,
   },
   isSpicy: {
     type: Boolean,
+    required: true,
   },
   isVegan: {
     type: Boolean,
+    required: true,
+  },
+  isDisplayed: {
+    type: Boolean,
+    default: false,
+  },
+  editedBy: {
+    type: String,
+  },
+  createdBy: {
+    type: String,
+    required: true,
   },
 });
 
