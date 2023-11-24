@@ -262,6 +262,7 @@ cancel = async (req, res) => {
           status: "CANCELLED",
           confirmationToken: "",
           cancellationReason,
+          cancelledBy: user.role === "CLIENT" ? "Client" : user.email,
         },
       }
     );
@@ -281,6 +282,7 @@ cancel = async (req, res) => {
 
 getAll = async (req, res) => {
   const { sort, dir, page, term, size, status, date } = req.query;
+  const userId = req.user;
   try {
     const sortOptions = {};
     const query = {};
@@ -329,6 +331,7 @@ getAll = async (req, res) => {
 
     const reservationsResponse = [];
     const totalCount = (await Reservation.find(query)).length;
+    const user = await User.findById(userId);
 
     const reservations = await Reservation.find(query)
       .sort(sortOptions)
@@ -365,6 +368,8 @@ getAll = async (req, res) => {
           reservation.hour,
           reservation.status
         ),
+        completedBy: user.role === "MANAGER" ? reservation.completedBy : null,
+        cancelledBy: user.role === "MANAGER" ? reservation.cancelledBy : null,
       };
       reservationsResponse.push(reservationResponse);
     }

@@ -26,8 +26,8 @@ personalDataSchema.pre("save", async function (next) {
     "$1 $2 $3"
   );
 
-  this.firstName = this.firstName.toLowerCase();
-  this.secondName = this.secondName.toLowerCase();
+  this.firstName = this.firstName.toLowerCase().trim();
+  this.secondName = this.secondName.toLowerCase().trim();
   this.email = this.email.toLowerCase();
   this.phone = formattedPhoneNumber;
 
