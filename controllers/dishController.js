@@ -4,13 +4,13 @@ const User = require("../models/user");
 create = async (req, res) => {
   const { name, ingredients, price, type, isVegan, isSpicy } = req.body;
   const userId = req.user;
+  if (!name || !ingredients || !price || !type) {
+    return res.status(400).json({ message: "Invalid data provided." });
+  }
   if (
-    !name ||
-    !ingredients ||
-    !price ||
-    !type ||
-    typeof isVegan === "undefined" ||
-    typeof isSpicy === "undefined"
+    type !== "Drink" &&
+    type !== "Dessert" &&
+    (typeof isVegan === "undefined" || typeof isSpicy === "undefined")
   ) {
     return res.status(400).json({ message: "Invalid data provided." });
   }
@@ -27,7 +27,12 @@ create = async (req, res) => {
       createdBy: user.email,
     });
 
-    res.status(201).json({ dish: dish._id });
+    const dishResponse = {
+      name: dish.name,
+      type: dish.type,
+    };
+
+    res.status(201).json(dishResponse);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -43,9 +48,14 @@ update = async (req, res) => {
     !ingredients ||
     !price ||
     !type ||
-    typeof isVegan === "undefined" ||
-    typeof isSpicy === "undefined" ||
     typeof isDisplayed === "undefined"
+  ) {
+    return res.status(400).json({ message: "Invalid data provided." });
+  }
+  if (
+    type !== "Drink" &&
+    type !== "Dessert" &&
+    (typeof isVegan === "undefined" || typeof isSpicy === "undefined")
   ) {
     return res.status(400).json({ message: "Invalid data provided." });
   }
