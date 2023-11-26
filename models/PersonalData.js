@@ -34,4 +34,4 @@ personalDataSchema.pre("save", async function (next) {
   next();
 });
 
-module.exports = model("personalData", personalDataSchema);
+module.exports = model("PersonalData", personalDataSchema);

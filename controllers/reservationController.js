@@ -334,20 +334,18 @@ getAll = async (req, res) => {
     const user = await User.findById(userId);
 
     const reservations = await Reservation.find(query)
+      .populate("tableId", "number")
+      .populate("personalDataId", "firstName secondName phone email")
       .sort(sortOptions)
       .skip((page - 1) * size)
       .limit(+size);
 
     for (const reservation of reservations) {
-      const table = await Table.findById(reservation.tableId);
-      const personalData = await PersonalData.findById(
-        reservation.personalDataId
-      );
       const personalDataResponse = {
-        firstName: personalData.firstName,
-        secondName: personalData.secondName,
-        phone: personalData.phone,
-        email: personalData.email,
+        firstName: reservation.personalDataId.firstName,
+        secondName: reservation.personalDataId.secondName,
+        phone: reservation.personalDataId.phone,
+        email: reservation.personalDataId.email,
       };
 
       reservationResponse = {
@@ -356,7 +354,7 @@ getAll = async (req, res) => {
         status: reservation.status,
         hour: reservation.hour,
         personalData: personalDataResponse,
-        tableNumber: table.number,
+        tableNumber: reservation.tableId.number,
         peopleNumber: reservation.peopleNumber,
         cancellationReason: reservation.cancellationReason,
         additionalOptions: reservation.additionalOptions,
