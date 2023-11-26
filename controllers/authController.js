@@ -5,6 +5,7 @@ const {
   sendRecoverPasswordEmail,
 } = require("../tools/email/sendEmail");
 const { createToken } = require("../tools/jwt-token");
+const validator = require("email-validator");
 
 const {
   REFRESH_TOKEN_SECRET_KEY,
@@ -20,7 +21,7 @@ const maxRecoveryTokenAge = 24 * 60 * 60;
 
 register = async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
+  if (!email || !password || !validator.validate(email)) {
     return res.status(400).json({ message: "Invalid data provided." });
   }
   try {

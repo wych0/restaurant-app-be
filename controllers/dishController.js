@@ -94,30 +94,6 @@ remove = async (req, res) => {
   }
 };
 
-// getDish = async (req, res) => {
-//   const { id } = req.params;
-//   const userId = req.user;
-//   try {
-//     const dish = await Dish.findById(id);
-//     const user = await User.findById(userId);
-
-//     const dishResponse = {
-//       name: dish.name,
-//       ingredients: dish.ingredients,
-//       price: dish.price,
-//       type: dish.type,
-//       isSpicy: dish.isSpicy,
-//       isVegan: dish.isVegan,
-//       editedBy: user.role === "MANAGER" ? dish.editedBy : undefined,
-//       createdBy: user.role === "MANAGER" ? dish.createdBy : undefined,
-//     };
-
-//     res.status(200).json(dishResponse);
-//   } catch (err) {
-//     res.status(500).json({ message: err.message });
-//   }
-// };
-
 getAllToDisplay = async (req, res) => {
   try {
     const dishes = await Dish.find({ isDisplayed: true });

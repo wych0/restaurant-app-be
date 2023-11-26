@@ -16,12 +16,6 @@ router.post(
   dishController.create
 );
 router.get("/to-display", dishController.getAllToDisplay);
-// router.get(
-//   "/:id",
-//   verifyToken,
-//   verifyRole(["WORKER", "MANAGER"]),
-//   dishController.getDish
-// );
 router.put(
   "/:id",
   verifyToken,
