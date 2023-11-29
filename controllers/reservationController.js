@@ -32,11 +32,36 @@ create = async (req, res) => {
     personalData,
     requests,
     userId,
+    duration,
   } = req.body;
-  if (!date || !hour || !peopleNumber || !personalData) {
+  if (!date || !hour || !peopleNumber || !personalData || !duration) {
     return res.status(400).json({ message: "Invalid data provided." });
   }
   try {
+    if (+duration > 6 || +duration < 2) {
+      return res
+        .status(422)
+        .json({ message: "Invalid duration provided. (2-6)" });
+    }
+    if (!isValidHour(hour)) {
+      return res
+        .status(422)
+        .json({ message: "Invalid hour provided. (12-21)" });
+    }
+    if (!notPastDate(date)) {
+      return res.status(422).json({ message: "Past date provided." });
+    }
+    if (parseInt(hour.split(":")[0]) + +duration > 23) {
+      return res.status(422).json({
+        message:
+          "Reservation cannot end after the closing time of the restaurant.",
+      });
+    }
+    const todaysDate = new Date();
+    const providedDate = new Date(date);
+    if (!notPastHour(hour) && isSameDay(todaysDate, providedDate)) {
+      return res.status(422).json({ message: "Past hour provided." });
+    }
     const user = await User.findOne({ email: personalData.email });
     if (user && user._id != userId) {
       return res.status(409).json({
@@ -44,29 +69,20 @@ create = async (req, res) => {
           "Probably you have an account, please log in before making reservation.",
       });
     }
-    if (!isValidHour(hour)) {
-      return res
-        .status(422)
-        .json({ message: "Invalid hour provided. (12-22)" });
-    }
+
     const maxPeopleNumber =
       +peopleNumber % 2 === 0 ? +peopleNumber : +peopleNumber + 1;
+    const intHour = parseInt(hour.split(":")[0]);
     const availableTable = await findAvailableTable(
       date,
-      hour,
-      maxPeopleNumber
+      intHour,
+      maxPeopleNumber,
+      duration
     );
     if (!availableTable) {
       return res.status(404).json({ message: "No tables available." });
     }
-    if (!notPastDate(date)) {
-      return res.status(422).json({ message: "Past date provided." });
-    }
-    const todaysDate = new Date();
-    const providedDate = new Date(date);
-    if (!notPastHour(hour) && isSameDay(todaysDate, providedDate)) {
-      return res.status(422).json({ message: "Past hour provided." });
-    }
+
     if (user) {
       const userPersonalData = await PersonalData.findById(user.personalDataId);
       if (userPersonalData) {
@@ -87,6 +103,7 @@ create = async (req, res) => {
     const reservation = await Reservation.create({
       date,
       hour,
+      duration,
       peopleNumber,
       requests,
       personalDataId: reservationPersonalData._id,
@@ -106,6 +123,7 @@ create = async (req, res) => {
     const reservationResponse = {
       date: reservation.date,
       hour: reservation.hour,
+      duration: reservation.duration,
       peopleNumber: reservation.peopleNumber,
       tableNumber: availableTable.number,
       personalData,
@@ -421,15 +439,16 @@ getReservation = async (req, res) => {
 };
 
 availableHours = async (req, res) => {
-  const { date, peopleNumber } = req.query;
+  const { date, peopleNumber, duration } = req.query;
 
-  if (!date || !peopleNumber) {
+  if (!date || !peopleNumber || !duration) {
     return res.status(400).json({ message: "Invalid data provided." });
   }
   try {
     const todaysDate = new Date();
     const currentHour = new Date().getHours();
     const providedDate = new Date(date);
+    const durationNum = +duration;
 
     if (!notPastDate(date)) {
       return res.status(422).json({ message: "Past date provided." });
@@ -447,47 +466,69 @@ availableHours = async (req, res) => {
       isSameDay(todaysDate, providedDate) && currentHour >= 11
         ? currentHour + 2
         : 12;
-    const lastAvailableHour = 22;
+    const lastAvailableHour = 21;
     const availableHours = [];
 
     for (let hour = firstAvailableHour; hour <= lastAvailableHour; hour++) {
       const reservedTablesForHour = reservations
         .filter((reservation) => {
           const reservationHour = parseInt(reservation.hour.split(":")[0]);
-          return Math.abs(reservationHour - hour) <= 1;
+          if (hour >= reservationHour) {
+            if (hour - reservationHour <= reservation.duration - 1) {
+              return true;
+            }
+            return false;
+          }
+          if (reservationHour - hour <= durationNum - 1) {
+            return true;
+          }
+          return false;
         })
         .map((reservation) => reservation.tableId);
 
       const setReservedTablesForHours = [...new Set(reservedTablesForHour)];
 
-      if (setReservedTablesForHours.length < tables.length) {
+      if (
+        setReservedTablesForHours.length < tables.length &&
+        hour + durationNum <= 23
+      ) {
         availableHours.push(`${hour}:00`);
       }
     }
+
     res.status(200).json(availableHours);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-async function findAvailableTable(date, hour, maxPeopleNumber) {
+async function findAvailableTable(date, hour, maxPeopleNumber, duration) {
   const reservations = await Reservation.find({
     date,
     status: { $ne: "CANCELLED" },
   });
   const tables = await Table.find({ maxPeopleNumber });
-  const intHour = parseInt(hour.split(":")[0]);
-
   const reservedTables = reservations.map((reservation) => ({
     tableId: reservation.tableId.toString(),
     hour: parseInt(reservation.hour.split(":")[0]),
+    duration: reservation.duration,
   }));
 
   const availableTable = tables.find((table) => {
     const isTableAvailable = !reservedTables.some((reservedTable) => {
-      const { tableId, hour: reservedHour } = reservedTable;
+      const {
+        tableId,
+        hour: reservedHour,
+        duration: reservedDuration,
+      } = reservedTable;
       if (tableId === table._id.toString()) {
-        if (Math.abs(reservedHour - intHour) <= 1) {
+        if (hour >= reservedHour) {
+          if (hour - reservedHour <= reservedDuration - 1) {
+            return true;
+          }
+          return false;
+        }
+        if (reservedHour - hour <= duration - 1) {
           return true;
         }
         return false;
@@ -495,7 +536,6 @@ async function findAvailableTable(date, hour, maxPeopleNumber) {
     });
     return isTableAvailable;
   });
-
   return availableTable;
 }
 
