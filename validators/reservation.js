@@ -23,7 +23,7 @@ const notPastHour = (hour) => {
 
 const isValidHour = (hour) => {
   const providedHour = parseInt(hour.split(":")[0]);
-  if (12 <= providedHour && providedHour <= 22) {
+  if (12 <= providedHour && providedHour <= 21) {
     return true;
   }
   return false;
