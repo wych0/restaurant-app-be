@@ -77,7 +77,7 @@ create = async (req, res) => {
         await userPersonalData.save();
       } else {
         const createdUserPersonalData = await PersonalData.create(personalData);
-        await User.findOneAndUpdate({
+        await User.findByIdAndUpdate(user._id, {
           personalDataId: createdUserPersonalData._id,
         });
       }
