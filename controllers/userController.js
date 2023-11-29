@@ -165,6 +165,7 @@ getReservations = async (req, res) => {
         date: reservation.date,
         status: reservation.status,
         hour: reservation.hour,
+        duration: reservation.duration,
       };
       reservationsResponse.push(reservationResponse);
     });
