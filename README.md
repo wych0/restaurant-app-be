@@ -53,7 +53,7 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 - **Method:** `POST`
 - **Path:** `/auth/activate/:token`
 - **Params:**
-  - `token` – activation token
+  - `token` - activation token
 
 #### Resend Activation Email
 - **Method:** `POST`
@@ -67,13 +67,13 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 - **Method:** `POST`
 - **Path:** `/auth/recover/:token`
 - **Params:**
-  - `token` – recovery token
+  - `token` - recovery token
 
 #### Check Recovery Token
 - **Method:** `GET`
 - **Path:** `/auth/check-recovery-token/:token`
 - **Params:**
-  - `token` – recovery token
+  - `token` - recovery token
 
 ---
 
@@ -82,7 +82,7 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 #### Get All Dishes
 - **Method:** `GET`
 - **Path:** `/dish/`
-- **Auth:** Required – roles: `WORKER`, `MANAGER`
+- **Auth:** Required - roles: `WORKER`, `MANAGER`
 
 #### Get Dishes To Display
 - **Method:** `GET`
@@ -91,21 +91,21 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 #### Create Dish
 - **Method:** `POST`
 - **Path:** `/dish/`
-- **Auth:** Required – roles: `WORKER`, `MANAGER`
+- **Auth:** Required - roles: `WORKER`, `MANAGER`
 
 #### Update Dish
 - **Method:** `PUT`
 - **Path:** `/dish/:id`
 - **Params:**
-  - `id` – dish ID  
-- **Auth:** Required – roles: `WORKER`, `MANAGER`
+  - `id` - dish ID  
+- **Auth:** Required - roles: `WORKER`, `MANAGER`
 
 #### Delete Dish
 - **Method:** `DELETE`
 - **Path:** `/dish/:id`
 - **Params:**
-  - `id` – dish ID  
-- **Auth:** Required – role: `MANAGER`
+  - `id` - dish ID  
+- **Auth:** Required - role: `MANAGER`
 
 ---
 
@@ -118,7 +118,7 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 #### Get All Reservations
 - **Method:** `GET`
 - **Path:** `/reservation/`
-- **Auth:** Required – roles: `WORKER`, `MANAGER`
+- **Auth:** Required - roles: `WORKER`, `MANAGER`
 
 #### Get Available Hours
 - **Method:** `GET`
@@ -128,13 +128,13 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 - **Method:** `POST`
 - **Path:** `/reservation/confirm/:token`
 - **Params:**
-  - `token` – confirmation token
+  - `token` - confirmation token
 
 #### Cancel Reservation
 - **Method:** `POST`
 - **Path:** `/reservation/cancel/:id`
 - **Params:**
-  - `id` – reservation ID  
+  - `id` - reservation ID  
 - **Auth:** Required
 
 #### Complete Reservation
@@ -142,13 +142,13 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 - **Path:** `/reservation/complete/:id`
 - **Params:**
   - `id` – reservation ID  
-- **Auth:** Required – roles: `WORKER`, `MANAGER`
+- **Auth:** Required - roles: `WORKER`, `MANAGER`
 
 #### Get Reservation Details
 - **Method:** `GET`
 - **Path:** `/reservation/:id`
 - **Params:**
-  - `id` – reservation ID  
+  - `id` - reservation ID  
 - **Auth:** Required
 
 ---
@@ -158,12 +158,12 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 #### Create Worker
 - **Method:** `POST`
 - **Path:** `/user/`
-- **Auth:** Required – role: `MANAGER`
+- **Auth:** Required - role: `MANAGER`
 
 #### Get All Workers
 - **Method:** `GET`
 - **Path:** `/user/`
-- **Auth:** Required – role: `MANAGER`
+- **Auth:** Required - role: `MANAGER`
 
 #### Change Password
 - **Method:** `PATCH`
@@ -184,8 +184,8 @@ Server was created using **JavaScript**, **Node.js**, **Express.js** and **Mongo
 - **Method:** `DELETE`
 - **Path:** `/user/:id`
 - **Params:**
-  - `id` – user ID  
-- **Auth:** Required – role: `MANAGER`
+  - `id` - user ID  
+- **Auth:** Required - role: `MANAGER`
 
 ---
 
